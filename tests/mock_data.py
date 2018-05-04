@@ -138,6 +138,35 @@ _MOCK_DATA = {
             }
         }
     },
+    'en:action=query&prop=extracts&titles=Test_Math&': {
+        "batchcomplete": "",
+        "warnings": {
+            "extracts": {
+                "*": "\"exlimit\" was too large for a whole article extracts request, lowered to 1."
+            }
+        },
+        "query": {
+            "normalized": [
+                {
+                    "from": "Test_Math",
+                    "to": "Test Math"
+                }
+            ],
+            "pages": {
+                "4": {
+                    "pageid": 4,
+                    "ns": 0,
+                    "title": "Test Math",
+                    "extract": (
+                        "<p><b>Summary</b> text\n\n</p>\n" +
+                        "<h2>Section 1</h2>\n" +
+                        "<p>Text for section 1</p>\n\n\n" +
+                        """<p>This occurs where:</p>\n<dl><dd><span><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="{\\displaystyle {\\frac {1}{1-e}}&gt;{\\frac {r_{1}}{R_{1}}}&gt;{\\frac {1}{1+e}}}">\n  <semantics>\n    <mrow class="MJX-TeXAtom-ORD">\n      <mstyle displaystyle="true" scriptlevel="0">\n        <mrow class="MJX-TeXAtom-ORD">\n          <mfrac>\n            <mn>1</mn>\n            <mrow>\n              <mn>1</mn>\n              <mo>−</mo>\n              <mi>e</mi>\n            </mrow>\n          </mfrac>\n        </mrow>\n        <mo>&gt;</mo>\n        <mrow class="MJX-TeXAtom-ORD">\n          <mfrac>\n            <msub>\n              <mi>r</mi>\n              <mrow class="MJX-TeXAtom-ORD">\n                <mn>1</mn>\n              </mrow>\n            </msub>\n            <msub>\n              <mi>R</mi>\n              <mrow class="MJX-TeXAtom-ORD">\n                <mn>1</mn>\n              </mrow>\n            </msub>\n          </mfrac>\n        </mrow>\n        <mo>&gt;</mo>\n        <mrow class="MJX-TeXAtom-ORD">\n          <mfrac>\n            <mn>1</mn>\n            <mrow>\n              <mn>1</mn>\n              <mo>+</mo>\n              <mi>e</mi>\n            </mrow>\n          </mfrac>\n        </mrow>\n      </mstyle>\n    </mrow>\n    <annotation encoding="application/x-tex">{\\displaystyle {\\frac {1}{1-e}}&gt;{\\frac {r_{1}}{R_{1}}}&gt;{\\frac {1}{1+e}}}</annotation>\n  </semantics></math></span></span></dd>\n</dl><p>Note that the Sun–Jupiter system</p>"""
+                    )
+                }
+            }
+        }
+    },
     'en:action=query&inprop=protection|talkid|watched|watchers|visitingwatchers|notificationtimestamp|subjectid|url|readable|preload|displaytitle&prop=info&titles=Test_1&': {
         "batchcomplete": "",
         "query": {

@@ -1,7 +1,10 @@
 import logging
 import re
 import requests
+import html
 from typing import Dict, Any, List
+
+import wikipediaapi.natlang
 log = logging.getLogger(__name__)
 
 # https://www.mediawiki.org/wiki/API:Main_page
@@ -21,6 +24,8 @@ class ExtractFormat(object):  # (Enum):
     # Plain: https://goo.gl/MAv2qz
     # Doesn't allow to recognize subsections
     # PLAIN = 3
+
+    NATLANG = 4
 
 
 class Namespace(object):
@@ -62,6 +67,24 @@ class Namespace(object):
     GADGET_DEFINITION = 2302
     GADGET_DEFINITION_TALK = 2303
 
+WIKI_PATTERN = re.compile(r'\n\n *(===*) (.*?) (===*) *\n')
+WIKI_TITLE = lambda match: match.group(2)
+WIKI_LEVEL = lambda match: len(match.group(1))
+HTML_PATTERN = re.compile(
+    r'\n? *<h(\d)[^>]*?>(<span[^>]*><\/span>)? *' +
+    '(<span[^>]*>)? *(<span[^>]*><\/span>)? *(.*?) *' +
+    '(<\/span>)?(<span>Edit<\/span>)?<\/h\d>\n?'
+)
+HTML_TITLE = lambda match: match.group(5)
+HTML_LEVEL = lambda match: int(match.group(1).strip())
+
+
+def wiki_query(params):
+    p = dict(params)
+    p['explaintext'] = 1
+    p['exsectionformat'] = 'wiki'
+    return p
+
 
 RE_SECTION = {
     ExtractFormat.WIKI: re.compile(r'\n\n *(===*) (.*?) (===*) *\n'),
@@ -74,6 +97,12 @@ RE_SECTION = {
     ),
     # ExtractFormat.PLAIN.value: re.compile(r'\n\n *(===*) (.*?) (===*) *\n'),
 }
+
+
+def natlang_html_cleanup(html):
+    nl = wikipediaapi.natlang.HtmlParser()
+    nl.feed(html)
+    return nl.get_text()
 
 
 class Wikipedia(object):
@@ -95,6 +124,24 @@ class Wikipedia(object):
         self.user_agent = user_agent
         self.extract_format = extract_format
         self.timeout = timeout
+        self.cleanup = str.strip
+        self.combine_sections = lambda title, level: title
+
+        if self.extract_format == ExtractFormat.WIKI:
+            self.extend_query = wiki_query
+            self.pattern = WIKI_PATTERN
+            self.extract_title = WIKI_TITLE
+            self.extract_level = WIKI_LEVEL
+        elif self.extract_format == ExtractFormat.HTML or self.extract_format == ExtractFormat.NATLANG:
+            self.extend_query = lambda q: q
+            self.pattern = HTML_PATTERN
+            self.extract_title = HTML_TITLE
+            self.extract_level = HTML_LEVEL
+
+            if self.extract_format == ExtractFormat.NATLANG:
+                self.cleanup = natlang_html_cleanup
+            elif self.extract_format == ExtractFormat.HTML:
+                self.combine_sections = lambda title, level: "<h{}>{}</h{}>".format(level, title, level)
 
     def page(
             self,
@@ -116,22 +163,11 @@ class Wikipedia(object):
         https://www.mediawiki.org/w/api.php?action=help&modules=query%2Bextracts
         https://www.mediawiki.org/wiki/Extension:TextExtracts#API
         """
-        params = {
+        params = self.extend_query({
             'action': 'query',
             'prop': 'extracts',
             'titles': page.title
-        }
-
-        if self.extract_format == ExtractFormat.HTML:
-            # we do nothing, when format is HTML
-            pass
-        elif self.extract_format == ExtractFormat.WIKI:
-            params['explaintext'] = 1
-            params['exsectionformat'] = 'wiki'
-        # elif self.extract_format == ExtractFormat.PLAIN:
-        #    params['explaintext'] = 1
-        #    params['exsectionformat'] = 'plain'
-
+        })
         raw = self._query(
             page,
             params
@@ -381,16 +417,14 @@ class Wikipedia(object):
         prev_pos = 0
 
         for match in re.finditer(
-            RE_SECTION[self.extract_format],
+            self.pattern,
             extract['extract']
         ):
             # print(match.start(), match.end())
             if page._summary == '':
-                page._summary = extract['extract'][0:match.start()].strip()
+                page._summary = self.cleanup(extract['extract'][0:match.start()])
             else:
-                section._text = (
-                    extract['extract'][prev_pos:match.start()]
-                ).strip()
+                section._text = self.cleanup(extract['extract'][prev_pos:match.start()])
 
             section = self._create_section(match)
             sec_level = section.level + 1
@@ -405,28 +439,23 @@ class Wikipedia(object):
                     section_stack.pop()
                 section_stack.append(section)
 
-            section_stack[len(section_stack) - 2]._section.append(section)
-            # section_stack[sec_level - 1]._section.append(section)
+            section_stack[len(section_stack) - 2]._sections.append(section)
+            # section_stack[sec_level - 1]._sections.append(section)
 
             # section_stack_pos = sec_level
 
             prev_pos = match.end()
             page._section_mapping[section._title] = section
+            page._section_titles.append(section._title)
 
         if prev_pos > 0:
-            section._text = extract['extract'][prev_pos:]
+            section._text = self.cleanup(extract['extract'][prev_pos:])
 
         return page
 
     def _create_section(self, match):
-        sec_title = ''
-        sec_level = 2
-        if self.extract_format == ExtractFormat.WIKI:
-            sec_title = match.group(2).strip()
-            sec_level = len(match.group(1))
-        elif self.extract_format == ExtractFormat.HTML:
-            sec_title = match.group(5).strip()
-            sec_level = int(match.group(1).strip())
+        sec_title = self.cleanup(self.extract_title(match))
+        sec_level = self.extract_level(match)
 
         section = WikipediaPageSection(
             sec_title,
@@ -565,7 +594,7 @@ class WikipediaPageSection(object):
         self._title = title
         self._level = level
         self._text = text
-        self._section = [] # type: List['WikipediaPageSection']
+        self._sections = []
 
     @property
     def title(self) -> str:
@@ -581,15 +610,19 @@ class WikipediaPageSection(object):
 
     @property
     def sections(self) -> List['WikipediaPageSection']:
-        return self._section
+        return self._sections
+
+    #@property
+    #def section_titles(self) -> [str]:
+    #    return self._section_titles
 
     def __repr__(self):
         return "Section: {} ({}):\n{}\nSubsections ({}):\n{}".format(
             self._title,
             self._level,
             self._text,
-            len(self._section),
-            "\n".join(map(repr, self._section))
+            len(self._sections),
+            "\n".join(map(repr, self._sections))
         )
 
 
@@ -630,8 +663,9 @@ class WikipediaPage(object):
     ) -> None:
         self.wiki = wiki
         self._summary = '' # type: str
-        self._section = [] # type: List[WikipediaPageSection]
+        self._sections = [] # type: List[WikipediaPageSection]
         self._section_mapping = {} # type: Dict[str, WikipediaPageSection]
+        self._section_titles = []
         self._langlinks = {} # type: PagesDict
         self._links = {} # type: PagesDict
         self._backlinks = {} # type: PagesDict
@@ -682,7 +716,13 @@ class WikipediaPage(object):
     def sections(self) -> List[WikipediaPageSection]:
         if not self._called['structured']:
             self._fetch('structured')
-        return self._section
+        return self._sections
+
+    @property
+    def section_titles(self) -> [str]:
+        if not self._called['structured']:
+            self._fetch('structured')
+        return self._section_titles
 
     def section_by_title(self, title: str) -> WikipediaPageSection:
         if not self._called['structured']:
@@ -698,13 +738,7 @@ class WikipediaPage(object):
         def combine(sections, level):
             res = ""
             for sec in sections:
-                if self.wiki.extract_format == ExtractFormat.WIKI:
-                    res += sec.title
-                elif self.wiki.extract_format == ExtractFormat.HTML:
-                    res += "<h{}>{}</h{}>".format(level, sec.title, level)
-                else:
-                    raise NotImplementedError("Unknown ExtractFormat type")
-
+                res += self.wiki.combine_sections(sec.title, level)
                 res += "\n"
                 res += sec.text
                 if len(sec.text) > 0:

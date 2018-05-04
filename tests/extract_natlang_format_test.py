@@ -6,11 +6,11 @@ import wikipediaapi
 from mock_data import wikipedia_api_request
 
 
-class TestHtmlFormatExtracts(unittest.TestCase):
+class TestTextualFormatExtracts(unittest.TestCase):
     def setUp(self):
         self.wiki = wikipediaapi.Wikipedia(
             "en",
-            extract_format=wikipediaapi.ExtractFormat.HTML
+            extract_format=wikipediaapi.ExtractFormat.NATLANG
         )
         self.wiki._query = wikipedia_api_request
 
@@ -29,7 +29,7 @@ class TestHtmlFormatExtracts(unittest.TestCase):
 
     def test_summary(self):
         page = self.wiki.page('Test_1')
-        self.assertEqual(page.summary, '<p><b>Summary</b> text\n\n</p>')
+        self.assertEqual(page.summary, 'Summary text\n\n')
 
     def test_section_count(self):
         page = self.wiki.page('Test_1')
@@ -80,12 +80,12 @@ class TestHtmlFormatExtracts(unittest.TestCase):
         self.assertEqual(section.title, 'Section 4.2.2')
         self.assertEqual(
             section.text,
-            '<p><b>Text for section 4.2.2</b>\n\n\n</p>'
+            'Text for section 4.2.2\n\n\n'
         )
         self.assertEqual(
             repr(section),
             "Section: Section 4.2.2 (3):\n" +
-            "<p><b>Text for section 4.2.2</b>\n\n\n</p>\n" +
+            "Text for section 4.2.2\n\n\n\n" +
             "Subsections (0):\n"
         )
         self.assertEqual(len(section.sections), 0)
@@ -96,45 +96,44 @@ class TestHtmlFormatExtracts(unittest.TestCase):
         self.assertEqual(
             page.text,
             (
-                "<p><b>Summary</b> text\n\n</p>\n\n" +
-                "<h2>Section 1</h2>\n" +
-                "<p>Text for section 1</p>\n\n" +
-                "<h3>Section 1.1</h3>\n" +
-                "<p><b>Text for section 1.1</b>\n\n\n</p>\n\n" +
-                "<h3>Section 1.2</h3>\n" +
-                "<p><b>Text for section 1.2</b>\n\n\n</p>\n\n" +
-                "<h2>Section 2</h2>\n" +
-                "<p><b>Text for section 2</b>\n\n\n</p>\n\n" +
-                "<h2>Section 3</h2>\n" +
-                "<p><b>Text for section 3</b>\n\n\n</p>\n\n" +
-                "<h2>Section 4</h2>\n" +
-                "<h3>Section 4.1</h3>\n" +
-                "<p><b>Text for section 4.1</b>\n\n\n</p>\n\n" +
-                "<h3>Section 4.2</h3>\n" +
-                "<p><b>Text for section 4.2</b>\n\n\n</p>\n\n" +
-                "<h4>Section 4.2.1</h4>\n" +
-                "<p><b>Text for section 4.2.1</b>\n\n\n</p>\n\n" +
-                "<h4>Section 4.2.2</h4>\n" +
-                "<p><b>Text for section 4.2.2</b>\n\n\n</p>\n\n" +
-                "<h2>Section 5</h2>\n" +
-                "<p><b>Text for section 5</b>\n\n\n</p>\n\n" +
-                "<h3>Section 5.1</h3>\n" +
-                "<p>Text for section 5.1\n\n\n</p>"
+                "Summary text\n\n\n\n" +
+                "Section 1\n" +
+                "Text for section 1\n\n\n\n" +
+                "Section 1.1\n" +
+                "Text for section 1.1\n\n\n\n\n" +
+                "Section 1.2\n" +
+                "Text for section 1.2\n\n\n\n\n" +
+                "Section 2\n" +
+                "Text for section 2\n\n\n\n\n" +
+                "Section 3\n" +
+                "Text for section 3\n\n\n\n\n" +
+                "Section 4\n" +
+                "Section 4.1\n" +
+                "Text for section 4.1\n\n\n\n\n" +
+                "Section 4.2\n" +
+                "Text for section 4.2\n\n\n\n\n" +
+                "Section 4.2.1\n" +
+                "Text for section 4.2.1\n\n\n\n\n" +
+                "Section 4.2.2\n" +
+                "Text for section 4.2.2\n\n\n\n\n" +
+                "Section 5\n" +
+                "Text for section 5\n\n\n\n\n" +
+                "Section 5.1\n" +
+                "Text for section 5.1"
             )
         )
 
-    def test_with_erroneous_edit(self):
-        page = self.wiki.page('Test_Edit')
+    def test_math_text(self):
+        page = self.wiki.page("Test_Math")
         self.maxDiff = None
-        section = page.section_by_title('Section with Edit')
-        self.assertEqual(section.title, 'Section with Edit')
         self.assertEqual(
             page.text,
             (
-                "<p><b>Summary</b> text\n\n</p>\n\n" +
-                "<h2>Section 1</h2>\n" +
-                "<p>Text for section 1</p>\n\n"
-                "<h3>Section with Edit</h3>\n" +
-                "<p>Text for section with edit\n\n\n</p>"
+                "Summary text\n\n\n\n" +
+                "Section 1\n" +
+                "Text for section 1\n\n\n" +
+                "This occurs where:\n\n" +
+                "Note that the Sun–Jupiter system"
             )
         )
+
